@@ -32,6 +32,8 @@ export default function App() {
   const frontRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLDivElement>(null);
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
   const handleDownload = async (side: 'front' | 'back', e: React.MouseEvent) => {
     e.stopPropagation();
     // Only allow front side download as per user request
@@ -117,13 +119,24 @@ export default function App() {
   }, [currentDate, loadData]);
 
   const handlePrevDay = () => {
+    if (loading) return;
     setDirection(-1);
     setCurrentDate(prev => subDays(prev, 1));
   };
 
   const handleNextDay = () => {
+    if (loading) return;
     setDirection(1);
     setCurrentDate(prev => addDays(prev, 1));
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (loading) return;
+    const newDate = new Date(e.target.value);
+    if (!isNaN(newDate.getTime())) {
+      setDirection(newDate > currentDate ? 1 : -1);
+      setCurrentDate(newDate);
+    }
   };
 
   const toggleFlip = () => {
@@ -145,6 +158,37 @@ export default function App() {
           <h1 className="text-xl font-medium tracking-tight">那年今日</h1>
         </div>
         <div className="flex items-center gap-4">
+          <div className="relative group">
+            <input 
+              ref={dateInputRef}
+              type="date"
+              value={format(currentDate, 'yyyy-MM-dd')}
+              onChange={handleDateChange}
+              disabled={loading}
+              className="opacity-0 absolute inset-0 w-0 h-0 pointer-events-none"
+            />
+            <div 
+              onClick={() => {
+                if (!loading && dateInputRef.current) {
+                  try {
+                    // @ts-ignore
+                    dateInputRef.current.showPicker();
+                  } catch (e) {
+                    dateInputRef.current.click();
+                  }
+                }
+              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/10 transition-all cursor-pointer",
+                loading ? "opacity-50 cursor-not-allowed" : "hover:border-black/30 bg-white/50"
+              )}
+            >
+              <Calendar className="w-4 h-4 opacity-60" />
+              <span className="text-sm font-medium tabular-nums">
+                {format(currentDate, 'yyyy.MM.dd')}
+              </span>
+            </div>
+          </div>
           <button 
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-black/5 rounded-full transition-colors"
@@ -153,15 +197,13 @@ export default function App() {
             <Settings className="w-5 h-5" />
           </button>
           <button 
-            onClick={() => setCurrentDate(new Date())}
-            className="p-2 hover:bg-black/5 rounded-full transition-colors"
+            onClick={() => !loading && setCurrentDate(new Date())}
+            disabled={loading}
+            className="p-2 hover:bg-black/5 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="回到今天"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
-          <div className="text-sm font-medium uppercase tracking-widest opacity-60">
-            {format(currentDate, 'yyyy.MM.dd')}
-          </div>
         </div>
       </header>
 
@@ -317,7 +359,8 @@ export default function App() {
           <div className="absolute -left-16 top-1/2 -translate-y-1/2 hidden md:block">
             <button 
               onClick={handlePrevDay}
-              className="w-12 h-12 rounded-full border border-black/10 flex items-center justify-center hover:bg-black hover:text-white transition-all"
+              disabled={loading}
+              className="w-12 h-12 rounded-full border border-black/10 flex items-center justify-center hover:bg-black hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-inherit"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
@@ -325,7 +368,8 @@ export default function App() {
           <div className="absolute -right-16 top-1/2 -translate-y-1/2 hidden md:block">
             <button 
               onClick={handleNextDay}
-              className="w-12 h-12 rounded-full border border-black/10 flex items-center justify-center hover:bg-black hover:text-white transition-all"
+              disabled={loading}
+              className="w-12 h-12 rounded-full border border-black/10 flex items-center justify-center hover:bg-black hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-inherit"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
@@ -336,13 +380,15 @@ export default function App() {
         <div className="mt-12 flex gap-8 md:hidden">
           <button 
             onClick={handlePrevDay}
-            className="w-14 h-14 rounded-full border border-black/10 flex items-center justify-center active:bg-black active:text-white transition-all"
+            disabled={loading}
+            className="w-14 h-14 rounded-full border border-black/10 flex items-center justify-center active:bg-black active:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
           <button 
             onClick={handleNextDay}
-            className="w-14 h-14 rounded-full border border-black/10 flex items-center justify-center active:bg-black active:text-white transition-all"
+            disabled={loading}
+            className="w-14 h-14 rounded-full border border-black/10 flex items-center justify-center active:bg-black active:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronRight className="w-6 h-6" />
           </button>
