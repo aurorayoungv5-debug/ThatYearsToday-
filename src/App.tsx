@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Calendar, History, Quote, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, History, Quote, Loader2, RefreshCw, Settings, X, Key, AlertCircle, Cpu, Download } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { fetchDayData, DayData, HistoricalEvent } from './services/geminiService';
+import { fetchDayData as fetchQwenData } from './services/qwenService';
+import { fetchDayData as fetchGeminiData } from './services/geminiService';
+import { DayData } from './services/qwenService';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { toPng } from 'html-to-image';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,16 +20,97 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isFlipped, setIsFlipped] = useState(false);
   const [direction, setDirection] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  const [selectedModel, setSelectedModel] = useState<'qwen' | 'gemini'>((localStorage.getItem('selected_model') as 'qwen' | 'gemini') || 'qwen');
+  const [qwenApiKey, setQwenApiKey] = useState(localStorage.getItem('qwen_api_key') || '');
+  const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  
+  const [qwenKeyInput, setQwenKeyInput] = useState(qwenApiKey);
+  const [geminiKeyInput, setGeminiKeyInput] = useState(geminiApiKey);
+
+  const frontRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
+
+  const handleDownload = async (side: 'front' | 'back', e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Only allow front side download as per user request
+    if (side !== 'front' || !frontRef.current) return;
+
+    const node = frontRef.current;
+    const padding = 0; // Total padding (10px on each side)
+    
+    try {
+      const dataUrl = await toPng(node, {
+        pixelRatio: 3,
+        backgroundColor: '#F5F2ED',
+        // Set the output dimensions to include padding
+        width: node.offsetWidth + padding,
+        height: node.offsetHeight + padding,
+        style: {
+          // Center the card in the larger canvas
+          transform: 'scale(0.9)',
+          left: `${padding / 2}px`,
+          top: `${padding / 2}px`,
+          bottom: `${padding / 2}px`,
+          right: `${padding / 2}px`,
+          margin: '0',
+          position: 'absolute',
+        },
+        filter: (node) => {
+          if (node instanceof HTMLElement) {
+            if (node.dataset.ignore === 'true') return false;
+            if (node.dataset.watermark === 'true') {
+              node.style.opacity = '0.4';
+              node.style.display = 'block';
+            }
+          }
+          return true;
+        }
+      });
+
+      const link = document.createElement('a');
+      link.download = `那年今日-${format(currentDate, 'yyyy-MM-dd')}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Failed to download image:', err);
+    }
+  };
 
   const loadData = useCallback(async (date: Date) => {
     setLoading(true);
     setIsFlipped(false);
     const month = date.getMonth() + 1;
     const day = date.getDate();
-    const result = await fetchDayData(month, day);
-    setData(result);
-    setLoading(false);
-  }, []);
+    
+    try {
+      let result;
+      if (selectedModel === 'qwen') {
+        result = await fetchQwenData(month, day, qwenApiKey);
+      } else {
+        result = await fetchGeminiData(month, day, geminiApiKey);
+      }
+      setData(result);
+    } catch (error: any) {
+      if (error.message === 'QWEN_API_KEY_MISSING' || error.message === 'GEMINI_API_KEY_MISSING') {
+        setShowSettings(true);
+      }
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedModel, qwenApiKey, geminiApiKey]);
+
+  const saveSettings = () => {
+    localStorage.setItem('selected_model', selectedModel);
+    localStorage.setItem('qwen_api_key', qwenKeyInput);
+    localStorage.setItem('gemini_api_key', geminiKeyInput);
+    
+    setQwenApiKey(qwenKeyInput);
+    setGeminiApiKey(geminiKeyInput);
+    setShowSettings(false);
+  };
 
   useEffect(() => {
     loadData(currentDate);
@@ -58,9 +142,16 @@ export default function App() {
           <div className="w-10 h-10 rounded-full border border-[#1A1A1A]/20 flex items-center justify-center">
             <History className="w-5 h-5" />
           </div>
-          <h1 className="text-xl font-medium tracking-tight">那年今天</h1>
+          <h1 className="text-xl font-medium tracking-tight">那年今日</h1>
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-2 hover:bg-black/5 rounded-full transition-colors"
+            title="设置"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
           <button 
             onClick={() => setCurrentDate(new Date())}
             className="p-2 hover:bg-black/5 rounded-full transition-colors"
@@ -94,7 +185,10 @@ export default function App() {
                 onClick={toggleFlip}
               >
                 {/* Front Side */}
-                <div className="absolute inset-0 backface-hidden bg-white rounded-[32px] shadow-2xl shadow-black/5 p-8 flex flex-col border border-black/5">
+                <div 
+                  ref={frontRef}
+                  className="absolute inset-0 backface-hidden bg-white rounded-[32px] shadow-2xl shadow-black/5 p-8 flex flex-col border border-black/5"
+                >
                   <div className="flex justify-between items-start mb-8">
                     <div className="flex flex-col">
                       <span className="text-6xl font-light tracking-tighter">
@@ -143,13 +237,33 @@ export default function App() {
                   </div>
 
                   <div className="mt-auto pt-8 border-t border-black/5 flex justify-between items-center text-[10px] uppercase tracking-[0.2em] opacity-40">
-                    <span>点击翻转查看历史</span>
-                    <span>{format(currentDate, 'EEEE', { locale: zhCN })}</span>
+                    <div className="flex flex-col gap-1">
+                      <span data-ignore="true">点击翻转查看历史</span>
+                      <span>{format(currentDate, 'EEEE', { locale: zhCN })}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="hidden text-[8px] opacity-0" data-watermark="true">
+                        {selectedModel === 'qwen' ? '通义千问' : 'Gemini'} AI 生成
+                      </span>
+                      {!loading && (
+                        <button 
+                          data-ignore="true"
+                          onClick={(e) => handleDownload('front', e)}
+                          className="p-2 hover:bg-black/5 rounded-full transition-colors"
+                          title="保存为图片"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Back Side */}
-                <div className="absolute inset-0 backface-hidden rotate-y-180 bg-[#1A1A1A] text-white rounded-[32px] shadow-2xl p-8 flex flex-col overflow-hidden">
+                <div 
+                  ref={backRef}
+                  className="absolute inset-0 backface-hidden rotate-y-180 bg-[#1A1A1A] text-white rounded-[32px] shadow-2xl p-8 flex flex-col overflow-hidden"
+                >
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xs uppercase tracking-[0.3em] opacity-50">历史上的今天</h3>
                     <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
@@ -189,8 +303,10 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="mt-6 pt-4 border-t border-white/10 text-[10px] uppercase tracking-[0.2em] opacity-30 text-center">
-                    点击返回正面
+                  <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center text-[10px] uppercase tracking-[0.2em] opacity-30">
+                    <div className="flex flex-col gap-1">
+                      <span>点击返回正面</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -232,6 +348,121 @@ export default function App() {
           </button>
         </div>
       </main>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 overflow-hidden"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-[#5A5A40]" />
+                  <h2 className="text-lg font-medium">应用设置</h2>
+                </div>
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="p-1 hover:bg-black/5 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Model Selection */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                    <Cpu className="w-3 h-3" /> 选择大模型
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => setSelectedModel('qwen')}
+                      className={cn(
+                        "px-4 py-3 rounded-xl border transition-all text-sm font-medium",
+                        selectedModel === 'qwen' 
+                          ? "bg-[#1A1A1A] text-white border-[#1A1A1A]" 
+                          : "bg-white text-[#1A1A1A] border-black/10 hover:border-black/20"
+                      )}
+                    >
+                      通义千问 (Qwen)
+                    </button>
+                    <button 
+                      onClick={() => setSelectedModel('gemini')}
+                      className={cn(
+                        "px-4 py-3 rounded-xl border transition-all text-sm font-medium",
+                        selectedModel === 'gemini' 
+                          ? "bg-[#1A1A1A] text-white border-[#1A1A1A]" 
+                          : "bg-white text-[#1A1A1A] border-black/10 hover:border-black/20"
+                      )}
+                    >
+                      Google Gemini
+                    </button>
+                  </div>
+                </div>
+
+                {/* API Key Inputs */}
+                <div className="space-y-4">
+                  {selectedModel === 'qwen' && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                        <Key className="w-3 h-3" /> Qwen API Key
+                      </label>
+                      <input 
+                        type="password"
+                        value={qwenKeyInput}
+                        onChange={(e) => setQwenKeyInput(e.target.value)}
+                        placeholder="sk-..."
+                        className="w-full px-4 py-3 bg-[#F5F2ED] rounded-xl border border-black/5 focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all font-mono text-sm"
+                      />
+                    </div>
+                  )}
+
+                  {selectedModel === 'gemini' && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest opacity-40 flex items-center gap-2">
+                        <Key className="w-3 h-3" /> Gemini API Key
+                      </label>
+                      <input 
+                        type="password"
+                        value={geminiKeyInput}
+                        onChange={(e) => setGeminiKeyInput(e.target.value)}
+                        placeholder="AIza..."
+                        className="w-full px-4 py-3 bg-[#F5F2ED] rounded-xl border border-black/5 focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all font-mono text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Warning for missing key */}
+                {((selectedModel === 'qwen' && !qwenKeyInput) || (selectedModel === 'gemini' && !geminiKeyInput)) && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl text-amber-700 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <p>当前选择的模型尚未配置 API Key，将无法获取数据。</p>
+                  </div>
+                )}
+
+                <button 
+                  onClick={saveSettings}
+                  className="w-full py-3 bg-[#1A1A1A] text-white rounded-xl font-medium hover:bg-black transition-all active:scale-[0.98]"
+                >
+                  保存并应用
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .perspective-1000 {
