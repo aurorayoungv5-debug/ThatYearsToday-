@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Calendar, History, Quote, Loader2, RefreshCw, Settings, X, Key, AlertCircle, Cpu, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, History, Quote, Loader2, RefreshCw, Settings, X, Key, AlertCircle, Cpu, Download } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { fetchDayData as fetchQwenData } from './services/qwenService';
@@ -10,17 +10,25 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { toPng } from 'html-to-image';
 
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export default function App() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [data, setData] = useState<DayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFlipped, setIsFlipped] = useState(false);
   const [direction, setDirection] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   const [selectedModel, setSelectedModel] = useState<'qwen' | 'gemini'>((localStorage.getItem('selected_model') as 'qwen' | 'gemini') || 'qwen');
   const [qwenApiKey, setQwenApiKey] = useState(localStorage.getItem('qwen_api_key') || '');
@@ -31,8 +39,6 @@ export default function App() {
 
   const frontRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLDivElement>(null);
-
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const handleDownload = async (side: 'front' | 'back', e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,13 +136,11 @@ export default function App() {
     setCurrentDate(prev => addDays(prev, 1));
   };
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (loading) return;
-    const newDate = new Date(e.target.value);
-    if (!isNaN(newDate.getTime())) {
-      setDirection(newDate > currentDate ? 1 : -1);
-      setCurrentDate(newDate);
-    }
+  const handleDateSelect = (date: Date | undefined) => {
+    if (loading || !date) return;
+    setDirection(date > currentDate ? 1 : -1);
+    setCurrentDate(date);
+    setIsCalendarOpen(false);
   };
 
   const toggleFlip = () => {
@@ -158,37 +162,31 @@ export default function App() {
           <h1 className="text-xl font-medium tracking-tight">那年今日</h1>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative group">
-            <input 
-              ref={dateInputRef}
-              type="date"
-              value={format(currentDate, 'yyyy-MM-dd')}
-              onChange={handleDateChange}
-              disabled={loading}
-              className="opacity-0 absolute inset-0 w-0 h-0 pointer-events-none"
-            />
-            <div 
-              onClick={() => {
-                if (!loading && dateInputRef.current) {
-                  try {
-                    // @ts-ignore
-                    dateInputRef.current.showPicker();
-                  } catch (e) {
-                    dateInputRef.current.click();
-                  }
-                }
-              }}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/10 transition-all cursor-pointer",
-                loading ? "opacity-50 cursor-not-allowed" : "hover:border-black/30 bg-white/50"
-              )}
-            >
-              <Calendar className="w-4 h-4 opacity-60" />
-              <span className="text-sm font-medium tabular-nums">
-                {format(currentDate, 'yyyy.MM.dd')}
-              </span>
-            </div>
-          </div>
+          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+            <PopoverTrigger asChild>
+              <button 
+                disabled={loading}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/10 transition-all cursor-pointer",
+                  loading ? "opacity-50 cursor-not-allowed" : "hover:border-black/30 bg-white/50"
+                )}
+              >
+                <CalendarIcon className="w-4 h-4 opacity-60" />
+                <span className="text-sm font-medium tabular-nums">
+                  {format(currentDate, 'yyyy.MM.dd')}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-white border border-black/10 shadow-xl rounded-2xl" align="end">
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={handleDateSelect}
+                initialFocus
+                locale={zhCN}
+              />
+            </PopoverContent>
+          </Popover>
           <button 
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-black/5 rounded-full transition-colors"
@@ -197,7 +195,13 @@ export default function App() {
             <Settings className="w-5 h-5" />
           </button>
           <button 
-            onClick={() => !loading && setCurrentDate(new Date())}
+            onClick={() => {
+              if (!loading) {
+                const d = new Date();
+                d.setHours(0, 0, 0, 0);
+                setCurrentDate(d);
+              }
+            }}
             disabled={loading}
             className="p-2 hover:bg-black/5 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="回到今天"
@@ -258,7 +262,7 @@ export default function App() {
                         {data?.todayEvent ? (
                           <>
                             <div className="inline-block p-2 rounded-full bg-[#5A5A40]/10 text-[#5A5A40] mb-2">
-                              <Calendar className="w-4 h-4" />
+                              <CalendarIcon className="w-4 h-4" />
                             </div>
                             <h2 className="text-2xl leading-relaxed font-medium">
                               {data.todayEvent}
