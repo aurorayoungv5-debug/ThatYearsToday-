@@ -152,7 +152,7 @@ export default function App() {
   const otherEvents = sortedHistory.slice(1);
 
   return (
-    <div className="min-h-screen bg-[#F5F2ED] text-[#1A1A1A] font-serif selection:bg-[#5A5A40] selection:text-white">
+    <div className="min-h-screen flex flex-col bg-[#F5F2ED] text-[#1A1A1A] font-serif selection:bg-[#5A5A40] selection:text-white">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50 bg-[#F5F2ED]/80 backdrop-blur-md">
         <div className="flex items-center gap-2">
@@ -211,7 +211,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="pt-32 pb-12 px-4 flex flex-col items-center justify-center min-h-screen">
+      <main className="flex-1 pt-32 pb-12 px-4 flex flex-col items-center justify-center">
         <div className="relative w-full max-w-md aspect-[3/4] perspective-1000">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
@@ -398,6 +398,17 @@ export default function App() {
           </button>
         </div>
       </main>
+
+      <footer className="pb-8 text-center text-sm text-[#1A1A1A]/40">
+        <a 
+          href="https://beian.miit.gov.cn" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="hover:text-[#1A1A1A]/60 transition-colors"
+        >
+          京ICP备2026014244号-1
+        </a>
+      </footer>
 
       {/* Settings Modal */}
       <AnimatePresence>

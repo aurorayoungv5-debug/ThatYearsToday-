@@ -1,20 +1,39 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 那年今日 (History Today)
 
-# Run and deploy your AI Studio app
+一个精美的历史上的今天探索应用。通过优雅的卡片设计，带你回顾历史长河中的每一个重要瞬间。
 
-This contains everything you need to run your app locally.
+## 功能特点
 
-View your app in AI Studio: https://ai.studio/apps/832681e2-427c-4218-bc15-fbbb968b692e
+- **历史回顾**：每日更新历史上的重大事件。
+- **精美设计**：采用复古纸张质感与现代排版结合的卡片设计。
+- **多模型支持**：支持通义千问 (Qwen) 和 Google Gemini 双模型切换。
+- **日期探索**：内置日历组件，可自由探索历史上任意一天的故事。
+- **卡片翻转**：点击卡片可查看更多相关历史事件。
+- **图片导出**：支持将精美的历史卡片导出为图片分享。
 
-## Run Locally
+## 技术栈
 
-**Prerequisites:**  Node.js
+- **前端框架**：React + TypeScript
+- **样式处理**：Tailwind CSS
+- **动画效果**：Framer Motion
+- **UI 组件**：shadcn/ui
+- **AI 集成**：Google Generative AI SDK (@google/genai)
 
+## 快速开始
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **安装依赖**：
+   ```bash
+   npm install
+   ```
+
+2. **启动开发服务器**：
+   ```bash
+   npm run dev
+   ```
+
+3. **配置 API Key**：
+   在应用设置中填入你的 Qwen 或 Gemini API Key 即可开始探索。
+
+## 备案信息
+
+京ICP备2026014244号-1
